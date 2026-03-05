@@ -1,0 +1,28 @@
+# Environment & secrets
+.env
+config.py
+
+# Database
+storage/jobs.db
+
+# Attachments (keep your resume private)
+attachments/
+
+# Logs
+agent.log
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+
+# Playwright
+.playwright/
+
+# OS
+.DS_Store
+Thumbs.db
