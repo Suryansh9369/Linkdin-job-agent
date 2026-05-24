@@ -1,11 +1,11 @@
 """
 ai/job_filter.py
-Uses Claude to evaluate each job against your preferences and score/filter them
+Uses Groq (free) to evaluate each job against your preferences and score/filter them
 """
 
 import json
 import logging
-import anthropic
+from groq import Groq
 from config import CONFIG
 
 log = logging.getLogger(__name__)
@@ -13,33 +13,27 @@ log = logging.getLogger(__name__)
 
 class JobFilter:
     def __init__(self):
-        self.client = anthropic.Anthropic(api_key=CONFIG.get("anthropic_api_key"))
+        self.client = Groq(api_key=CONFIG.get("groq_api_key"))
 
     async def filter_jobs(self, jobs: list, preferences: dict) -> list:
-        """
-        Run all jobs through Claude to get a relevance score.
-        Returns only jobs that score >= 7/10.
-        """
         matched = []
 
         for job in jobs:
-            score, reason = await self._score_job(job, preferences)
+            score, reason = self._score_job(job, preferences)
             job["match_score"] = score
             job["match_reason"] = reason
 
             if score >= 7:
-                log.info(f"  ✅ Match ({score}/10): {job['title']} @ {job['company']}")
+                log.info(f"  Match ({score}/10): {job['title']} @ {job['company']}")
                 log.info(f"     Reason: {reason}")
                 matched.append(job)
             else:
-                log.debug(f"  ❌ Skip ({score}/10): {job['title']} @ {job['company']}")
+                log.debug(f"  Skip ({score}/10): {job['title']} @ {job['company']}")
 
-        # Sort by score descending
         matched.sort(key=lambda x: x["match_score"], reverse=True)
         return matched
 
-    async def _score_job(self, job: dict, preferences: dict) -> tuple[int, str]:
-        """Ask Claude to score a single job 1-10."""
+    def _score_job(self, job: dict, preferences: dict) -> tuple:
         prompt = f"""
 You are a job matching assistant. Score this job listing 1-10 based on how well it matches the candidate's preferences.
 
@@ -56,19 +50,19 @@ Avoid: {', '.join(preferences.get('avoid', []))}
 Min Salary: ${preferences.get('min_salary', 'not specified')}
 Preferred Company Size: {', '.join(preferences.get('company_size', ['any']))}
 
-Respond ONLY in this JSON format (no markdown):
-{{
-  "score": <1-10 integer>,
-  "reason": "<one sentence explanation>"
-}}
+Respond ONLY in this JSON format (no markdown, no extra text):
+{{"score": <1-10 integer>, "reason": "<one sentence explanation>"}}
 """
         try:
-            response = self.client.messages.create(
-                model="claude-sonnet-4-20250514",
+            response = self.client.chat.completions.create(
+                model="llama3-8b-8192",
+                messages=[{"role": "user", "content": prompt}],
                 max_tokens=200,
-                messages=[{"role": "user", "content": prompt}]
+                temperature=0.3,
             )
-            text = response.content[0].text.strip()
+            text = response.choices[0].message.content.strip()
+            # Strip markdown fences if present
+            text = text.replace("```json", "").replace("```", "").strip()
             data = json.loads(text)
             return data["score"], data["reason"]
         except Exception as e:

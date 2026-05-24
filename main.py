@@ -3,7 +3,16 @@ LinkedIn Job Hunter Agent
 Crawls LinkedIn → Filters jobs via AI → Sends personalized emails
 """
 
+import sys
 import asyncio
+
+if sys.platform == "win32":
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+
+from dotenv import load_dotenv
+load_dotenv()
+
 import logging
 from datetime import datetime
 from config import CONFIG
@@ -17,7 +26,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
     handlers=[
-        logging.FileHandler("agent.log"),
+        logging.FileHandler("agent.log", encoding="utf-8"),
         logging.StreamHandler()
     ]
 )

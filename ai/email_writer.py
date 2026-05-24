@@ -1,11 +1,11 @@
 """
 ai/email_writer.py
-Uses Claude to compose a personalized outreach email for each job
+Uses Groq (free) to compose a personalized outreach email for each job
 """
 
 import json
 import logging
-import anthropic
+from groq import Groq
 from config import CONFIG
 
 log = logging.getLogger(__name__)
@@ -13,12 +13,9 @@ log = logging.getLogger(__name__)
 
 class EmailWriter:
     def __init__(self):
-        self.client = anthropic.Anthropic(api_key=CONFIG.get("anthropic_api_key"))
+        self.client = Groq(api_key=CONFIG.get("groq_api_key"))
 
     async def compose(self, job: dict, your_name: str, your_background: str) -> dict:
-        """
-        Returns a dict with 'subject' and 'body' for the email.
-        """
         prompt = f"""
 You are a professional career coach helping write job application emails.
 
@@ -26,7 +23,7 @@ Write a concise, personalized outreach email for this job. The email should:
 - Be professional but warm and genuine
 - Mention 2-3 specific things from the job description that match the candidate
 - Be under 200 words in the body
-- NOT sound like a template or ChatGPT output
+- NOT sound like a template or AI output
 - NOT use generic phrases like "I am writing to express my interest"
 - End with a clear call to action (reply, schedule a call)
 
@@ -39,28 +36,25 @@ Title: {job['title']}
 Company: {job['company']}
 Location: {job['location']}
 Description: {job['description'][:1500]}
-Match Score: {job.get('match_score', 'N/A')}/10
 Why it's a good match: {job.get('match_reason', '')}
 
-Respond ONLY in this JSON format (no markdown):
-{{
-  "subject": "<email subject line>",
-  "body": "<full email body, use \\n for line breaks>"
-}}
+Respond ONLY in this JSON format (no markdown, no extra text):
+{{"subject": "<email subject line>", "body": "<full email body, use \\n for line breaks>"}}
 """
         try:
-            response = self.client.messages.create(
-                model="claude-sonnet-4-20250514",
+            response = self.client.chat.completions.create(
+                model="llama3-8b-8192",
+                messages=[{"role": "user", "content": prompt}],
                 max_tokens=800,
-                messages=[{"role": "user", "content": prompt}]
+                temperature=0.7,
             )
-            text = response.content[0].text.strip()
+            text = response.choices[0].message.content.strip()
+            text = text.replace("```json", "").replace("```", "").strip()
             data = json.loads(text)
-            log.info(f"  ✍️  Email composed: '{data['subject']}'")
+            log.info(f"  Email composed: '{data['subject']}'")
             return data
         except Exception as e:
             log.error(f"  Email composition failed: {e}")
-            # Fallback template
             return {
                 "subject": f"Application for {job['title']} at {job['company']}",
                 "body": (

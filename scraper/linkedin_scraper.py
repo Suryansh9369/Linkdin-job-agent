@@ -16,28 +16,29 @@ class LinkedInScraper:
     BASE_URL = "https://www.linkedin.com"
 
     async def search_jobs(self, keywords: list, location: str, max_results: int = 50) -> list:
-        """Main entry: logs in and scrapes job listings."""
         jobs = []
         async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
+            browser = await p.chromium.launch(headless=False)
             context = await browser.new_context(
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
             )
             page = await context.new_page()
+            page.set_default_timeout(60000)
 
-            # Login
             await self._login(page)
 
-            # Search for each keyword
             for keyword in keywords:
                 log.info(f"  Searching: '{keyword}' in '{location}'")
-                keyword_jobs = await self._scrape_jobs(page, keyword, location, max_results // len(keywords))
-                jobs.extend(keyword_jobs)
-                await asyncio.sleep(random.uniform(2, 5))  # polite delay
+                try:
+                    keyword_jobs = await self._scrape_jobs(page, keyword, location, max_results // len(keywords))
+                    jobs.extend(keyword_jobs)
+                except Exception as e:
+                    log.warning(f"  Keyword '{keyword}' failed: {e}")
+                await asyncio.sleep(random.uniform(2, 5))
 
             await browser.close()
 
-        # Deduplicate by job_id
+        # Deduplicate
         seen = set()
         unique = []
         for j in jobs:
@@ -48,104 +49,126 @@ class LinkedInScraper:
         return unique
 
     async def _login(self, page):
-        """Log into LinkedIn."""
         await page.goto(f"{self.BASE_URL}/login")
+        await page.wait_for_selector("#username", timeout=15000)
         await page.fill("#username", CONFIG["linkedin_email"])
         await page.fill("#password", CONFIG["linkedin_password"])
         await page.click('button[type="submit"]')
         await page.wait_for_load_state("networkidle")
-        await asyncio.sleep(2)
-        log.info("  ✅ Logged into LinkedIn")
+        await asyncio.sleep(3)
+        log.info("  Logged into LinkedIn")
 
     async def _scrape_jobs(self, page, keyword: str, location: str, limit: int) -> list:
-        """Search and scrape job listings."""
         jobs = []
+
         search_url = (
             f"{self.BASE_URL}/jobs/search/?"
             f"keywords={keyword.replace(' ', '%20')}"
             f"&location={location.replace(' ', '%20')}"
-            f"&f_TPR=r86400"  # Last 24 hours
-            f"&sortBy=DD"     # Sort by date
+            f"&f_TPR=r86400"
+            f"&sortBy=DD"
         )
 
         await page.goto(search_url)
-        await page.wait_for_load_state("networkidle")
-        await asyncio.sleep(3)
+        await page.wait_for_load_state("domcontentloaded")
+        await asyncio.sleep(4)
+
+        # Confirmed working selector from debug output
+        job_cards = await page.query_selector_all(".job-search-card")
+        log.info(f"  Job cards found: {len(job_cards)}")
+
+        if not job_cards:
+            log.warning(f"  No cards found — URL: {page.url}")
+            return []
 
         collected = 0
-        scroll_attempts = 0
+        for card in job_cards[:limit]:
+            try:
+                job = await self._extract_job(page, card)
+                if job:
+                    jobs.append(job)
+                    collected += 1
+                    log.info(f"  [{collected}] {job['title']} @ {job['company']}")
+            except Exception as e:
+                log.debug(f"  Card error: {e}")
+            await asyncio.sleep(random.uniform(0.8, 1.5))
 
-        while collected < limit and scroll_attempts < 20:
-            # Get all job cards on current page
-            job_cards = await page.query_selector_all(".job-card-container")
-
-            for card in job_cards[collected:]:
-                if collected >= limit:
-                    break
-                try:
-                    job = await self._extract_job_card(page, card)
-                    if job:
-                        jobs.append(job)
-                        collected += 1
-                except Exception as e:
-                    log.debug(f"    Card extraction error: {e}")
-
-            # Scroll to load more
-            await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-            await asyncio.sleep(random.uniform(1.5, 3))
-            scroll_attempts += 1
-
+        log.info(f"  Total collected for '{keyword}': {len(jobs)}")
         return jobs
 
-    async def _extract_job_card(self, page, card) -> dict | None:
-        """Extract data from a single job card."""
+    async def _extract_job(self, page, card) -> dict | None:
         try:
-            # Click to open job details
+            # Get job ID and URL directly from the card (no click needed)
+            job_id = await card.get_attribute("data-entity-urn") or ""
+
+            # Get basic info directly from card elements (no detail panel click)
+            title = await self._try_selectors(card, [
+                ".job-search-card__title",
+                "h3.base-search-card__title",
+                "h3",
+            ])
+
+            company = await self._try_selectors(card, [
+                ".job-search-card__company-name",
+                "h4.base-search-card__subtitle",
+                "h4",
+            ])
+
+            location = await self._try_selectors(card, [
+                ".job-search-card__location",
+                "span.job-search-card__location",
+            ])
+
+            # Get job link
+            link_el = await card.query_selector("a.base-card__full-link, a[class*='card']")
+            job_url = await link_el.get_attribute("href") if link_el else page.url
+
+            # Click to load description in detail panel
             await card.click()
-            await asyncio.sleep(1.5)
+            await asyncio.sleep(2)
 
-            # Extract from detail panel
-            job_id = await card.get_attribute("data-job-id") or ""
-            title = await self._safe_text(page, ".job-details-jobs-unified-top-card__job-title")
-            company = await self._safe_text(page, ".job-details-jobs-unified-top-card__company-name")
-            location = await self._safe_text(page, ".job-details-jobs-unified-top-card__bullet")
-            description = await self._safe_text(page, ".jobs-description__content")
-            posted = await self._safe_text(page, ".job-details-jobs-unified-top-card__posted-date")
+            description = await self._try_selectors(page, [
+                ".description__text",
+                ".show-more-less-html__markup",
+                "#job-details",
+                ".jobs-description__content",
+                "div[class*='description']",
+            ])
 
-            # Try to find contact email in description
             contact_email = self._extract_email(description)
-
-            # Job URL
-            job_url = page.url
 
             if not title or not company:
                 return None
 
             return {
-                "job_id": job_id,
+                "job_id": job_id or f"{title}-{company}",
                 "title": title.strip(),
                 "company": company.strip(),
-                "location": location.strip(),
+                "location": location.strip() if location else "",
                 "description": description[:3000] if description else "",
-                "posted": posted.strip() if posted else "",
+                "posted": "",
                 "contact_email": contact_email,
-                "url": job_url,
+                "url": job_url or page.url,
             }
 
         except Exception as e:
-            log.debug(f"    Error extracting job: {e}")
+            log.debug(f"  Extraction error: {e}")
             return None
 
-    async def _safe_text(self, page, selector: str) -> str:
-        """Safe text extraction that won't throw."""
-        try:
-            el = await page.query_selector(selector)
-            return await el.inner_text() if el else ""
-        except:
-            return ""
+    async def _try_selectors(self, context, selectors: list) -> str:
+        """Works on both page and element contexts."""
+        for selector in selectors:
+            try:
+                el = await context.query_selector(selector)
+                if el:
+                    text = await el.inner_text()
+                    if text.strip():
+                        return text.strip()
+            except:
+                continue
+        return ""
 
     def _extract_email(self, text: str) -> str | None:
-        """Find email addresses in job description text."""
         import re
         if not text:
             return None
