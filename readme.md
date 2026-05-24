@@ -1,5 +1,7 @@
 # 🤖 AI Job Agent
 
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+
 An autonomous AI-powered job hunting system that scrapes LinkedIn jobs, filters opportunities using LLM-based relevance scoring, generates personalized outreach emails, and automates the application workflow.
 
 Designed for students, freshers, and professionals looking to streamline job discovery and outreach using AI automation.
