@@ -15,17 +15,25 @@ log = logging.getLogger(__name__)
 class LinkedInScraper:
     BASE_URL = "https://www.linkedin.com"
 
-    async def search_jobs(self, keywords: list, location: str, max_results: int = 50) -> list:
+    async def search_jobs(self, email, password, keywords, location, max_results=50) -> list:
         jobs = []
         async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=False)
+            browser = await p.chromium.launch(headless=False, slow_mo=800, args=["--disable-blink-features=AutomationControlled"])
             context = await browser.new_context(
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                viewport={"width": 1280, "height": 900},
+                user_agent=(
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/122.0.0.0 Safari/537.36"
+                ),
+                locale="en-US"
             )
             page = await context.new_page()
+            await page.goto("https://www.linkedin.com/login")
+            print(page.url)
             page.set_default_timeout(60000)
 
-            await self._login(page)
+            await self._login(page, email, password)
 
             for keyword in keywords:
                 log.info(f"  Searching: '{keyword}' in '{location}'")
@@ -48,15 +56,48 @@ class LinkedInScraper:
 
         return unique
 
-    async def _login(self, page):
-        await page.goto(f"{self.BASE_URL}/login")
-        await page.wait_for_selector("#username", timeout=15000)
-        await page.fill("#username", CONFIG["linkedin_email"])
-        await page.fill("#password", CONFIG["linkedin_password"])
+    async def _login(self, page, email, password):
+
+        await page.goto(
+            "https://www.linkedin.com/login",
+            wait_until="domcontentloaded"
+        )
+
+        await asyncio.sleep(10)
+
+        print("CURRENT URL:", page.url)
+
+        content = await page.content()
+
+        with open("debug_linkedin.html", "w", encoding="utf-8") as f:
+            f.write(content)
+
+        print("Saved page HTML")
+
+        await page.screenshot(path="linkedin_debug.png")
+
+        print("Screenshot saved")
+
+        await page.wait_for_selector(
+            'input[name="session_key"]',
+            timeout=60000
+        )
+
+        await page.fill(
+            'input[name="session_key"]',
+            email
+        )
+
+        await page.fill(
+            'input[name="session_password"]',
+            password
+        )
+
         await page.click('button[type="submit"]')
-        await page.wait_for_load_state("networkidle")
-        await asyncio.sleep(3)
-        log.info("  Logged into LinkedIn")
+
+        await asyncio.sleep(10)
+
+        print("After login:", page.url)
 
     async def _scrape_jobs(self, page, keyword: str, location: str, limit: int) -> list:
         jobs = []
