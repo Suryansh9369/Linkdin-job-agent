@@ -18,22 +18,34 @@ class LinkedInScraper:
     async def search_jobs(self, email, password, keywords, location, max_results=50) -> list:
         jobs = []
         async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=False, slow_mo=800, args=["--disable-blink-features=AutomationControlled"])
-            context = await browser.new_context(
-                viewport={"width": 1280, "height": 900},
-                user_agent=(
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/122.0.0.0 Safari/537.36"
-                ),
-                locale="en-US"
+            context = await p.chromium.launch_persistent_context(
+                user_data_dir="linkedin_session",
+                headless=False,
+                slow_mo=500,
+                args=[
+                    "--disable-blink-features=AutomationControlled"
+                ]
             )
-            page = await context.new_page()
-            await page.goto("https://www.linkedin.com/login")
+
+            page = context.pages[0] if context.pages else await context.new_page()
+            await page.goto("https://www.linkedin.com/feed/")
+            
+            await asyncio.sleep(15)
+            
             print(page.url)
+            await page.screenshot(path="jobs_page.png")
+            
+            # IF NOT LOGGED IN
+            # if "login" in page.url:
+            #     raise Exception(
+            #         "LinkedIn session expired. Please login again."
+            #     )
+                
+            # await page.goto("https://www.linkedin.com/login")
+            
             page.set_default_timeout(60000)
 
-            await self._login(page, email, password)
+            # await self._login(page, email, password)
 
             for keyword in keywords:
                 log.info(f"  Searching: '{keyword}' in '{location}'")
@@ -44,7 +56,7 @@ class LinkedInScraper:
                     log.warning(f"  Keyword '{keyword}' failed: {e}")
                 await asyncio.sleep(random.uniform(2, 5))
 
-            await browser.close()
+            await context.close()
 
         # Deduplicate
         seen = set()
@@ -103,19 +115,21 @@ class LinkedInScraper:
         jobs = []
 
         search_url = (
-            f"{self.BASE_URL}/jobs/search/?"
-            f"keywords={keyword.replace(' ', '%20')}"
+            f"{self.BASE_URL}/jobs/search/"
+            f"?keywords={keyword.replace(' ', '%20')}"
             f"&location={location.replace(' ', '%20')}"
-            f"&f_TPR=r86400"
+            f"&f_WT=2"
             f"&sortBy=DD"
         )
 
         await page.goto(search_url)
-        await page.wait_for_load_state("domcontentloaded")
-        await asyncio.sleep(4)
+        await page.wait_for_load_state("domcontentloaded") Exception
+        await page.wait_for_timeout(8000)
 
         # Confirmed working selector from debug output
-        job_cards = await page.query_selector_all(".job-search-card")
+        job_cards = await page.query_selector_all(
+            "div.job-search-card, li.scaffold-layout__list-item"
+        )
         log.info(f"  Job cards found: {len(job_cards)}")
 
         if not job_cards:
