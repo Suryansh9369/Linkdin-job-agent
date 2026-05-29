@@ -1,12 +1,12 @@
 # Environment & secrets
 .env
-config.py
 
 # Database
 storage/jobs.db
 
 # Attachments (keep your resume private)
-attachments/
+attachments/*
+!attachments/.gitkeep
 
 # Logs
 agent.log
@@ -38,3 +38,11 @@ linkedin_session/
 
 jobs.db
 agent.log
+
+.streamlit/
+
+*.db
+*.sqlite
+*.sqlite3
+
+.vscode/settings.json
