@@ -1,353 +1,244 @@
-# 🤖 AI Job Agent
+# 🚀 AI LinkedIn Job Hunter
 
-![License](https://img.shields.io/badge/license-MIT-blue.svg)
+An AI-powered job discovery platform that automates LinkedIn job searching, extracts relevant opportunities, and filters them using LLM-based relevance analysis.
 
-An autonomous AI-powered job hunting system that scrapes LinkedIn jobs, filters opportunities using LLM-based relevance scoring, generates personalized outreach emails, and automates the application workflow.
-
-Designed for students, freshers, and professionals looking to streamline job discovery and outreach using AI automation.
+Built using Python, Playwright, Streamlit, and Groq LLM.
 
 ---
 
-# 🚀 Features
+## 📸 Screenshots
 
-## 🔎 LinkedIn Job Scraping
-- Automated LinkedIn job crawling using Playwright
-- Keyword-based search
-- Location filtering
-- Multi-page job extraction
-- Duplicate job prevention
+### Dashboard
 
-## 🧠 AI Job Relevance Filtering
-- Uses Claude AI to evaluate job relevance
-- Matches jobs against:
-  - skills
-  - experience
-  - preferences
-  - avoid conditions
-- Intelligent scoring system
+![Dashboard](screenshots/dashboard.png)
 
-## ✉️ AI-Powered Personalized Emails
-- Generates customized outreach emails
-- Tailors messages based on:
-  - job role
-  - recruiter/company
-  - user background
-- Automatically attaches resume
+### Job Preferences
 
-## 📬 Automated Email Sending
-- SMTP-based email delivery
-- Gmail App Password integration
-- Email tracking and logging
+![Preferences](screenshots/preferences.png)
 
-## ⏰ Scheduler Automation
-- Daily automated execution
-- Configurable run timing
-- Weekday-only scheduling support
+---
 
-## 💾 Job Tracking Database
-- SQLite database integration
-- Prevents duplicate applications
-- Stores processed job metadata
+# ✨ Features
+
+### 🔍 Automated LinkedIn Job Discovery
+
+* Searches LinkedIn jobs automatically
+* Supports multiple job keywords
+* Location-based filtering
+* Remote job search support
+* Persistent authenticated sessions
+
+### 🤖 AI-Powered Job Filtering
+
+* Uses Groq LLM for job relevance analysis
+* Matches opportunities against:
+
+  * Must-have skills
+  * Nice-to-have skills
+  * Avoid keywords
+* Intelligent relevance scoring
+
+### 📊 Streamlit Dashboard
+
+* Interactive web interface
+* Real-time scraping workflow
+* User-defined search preferences
+* Job search analytics
+
+### ⚡ Browser Automation
+
+* Playwright-based scraping engine
+* Session persistence support
+* Async scraping architecture
+* Multi-keyword search capability
 
 ---
 
 # 🏗️ System Architecture
 
 ```text
-LinkedIn Jobs
-      ↓
-Playwright Scraper
-      ↓
-AI Relevance Filtering
-      ↓
-Email Generation
-      ↓
-SMTP Mail Sender
-      ↓
-SQLite Tracking Database
+                    ┌──────────────────┐
+                    │   LinkedIn Jobs  │
+                    └─────────┬────────┘
+                              │
+                              ▼
+                    ┌──────────────────┐
+                    │ Playwright       │
+                    │ Job Scraper      │
+                    └─────────┬────────┘
+                              │
+                              ▼
+                    ┌──────────────────┐
+                    │ Job Extraction   │
+                    │ & Processing     │
+                    └─────────┬────────┘
+                              │
+                              ▼
+                    ┌──────────────────┐
+                    │ Groq LLM         │
+                    │ AI Filtering     │
+                    └─────────┬────────┘
+                              │
+                              ▼
+                    ┌──────────────────┐
+                    │ Streamlit UI     │
+                    │ Dashboard        │
+                    └──────────────────┘
 ```
 
 ---
 
-# 📁 Project Structure
-
-```bash
-job-agent/
-│
-├── ai/
-│   ├── email_writer.py        # AI-generated email composer
-│   └── job_filter.py          # AI-based job relevance scoring
-│
-├── attachments/
-│   └── resume.pdf             # Your resume attachment
-│
-├── mailer/
-│   └── email_sender.py        # SMTP email sender
-│
-├── scraper/
-│   └── linkedin_scraper.py    # LinkedIn scraping logic
-│
-├── storage/
-│   ├── db.py                  # SQLite database operations
-│   └── jobs.db                # Generated database
-│
-├── .env                       # Environment variables
-├── .gitignore
-├── config.py                  # User configuration
-├── main.py                    # Main orchestration pipeline
-├── scheduler.py               # Scheduled automation
-├── view_jobs.py               # Database job viewer
-├── debug_page.html            # Debug/testing interface
-├── requirements.txt
-├── readme.md
-└── agent.log                  # Execution logs
-```
-
----
-
-# ⚙️ Installation
-
-## 1️⃣ Clone Repository
-
-```bash
-git clone https://github.com/YOUR_USERNAME/ai-job-agent.git
-cd ai-job-agent
-```
-
----
-
-## 2️⃣ Create Virtual Environment
-
-### Windows
-
-```bash
-python -m venv .venv
-.venv\Scripts\activate
-```
-
-### Linux / Mac
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-```
-
----
-
-## 3️⃣ Install Dependencies
-
-```bash
-pip install -r requirements.txt
-playwright install chromium
-```
-
----
-
-# 🔐 Configuration
-
-Edit `config.py`
-
-## Fill Your Information
-
-```python
-your_name = "Your Name"
-your_email = "your_email@gmail.com"
-your_background = "AI/ML Student with robotics experience"
-```
-
----
-
-## Job Preferences
-
-```python
-job_keywords = [
-    "AI Engineer",
-    "Machine Learning Intern",
-    "Python Developer"
-]
-
-location = "India"
-
-preferences = {
-    "must_have": [],
-    "avoid": []
-}
-```
-
----
-
-## LinkedIn Credentials
-
-```python
-linkedin_email = "your_email"
-linkedin_password = "your_password"
-```
-
----
-
-## SMTP Configuration
-
-```python
-smtp_user = "your_email@gmail.com"
-smtp_password = "gmail_app_password"
-```
-
----
-
-## Anthropic API Key
-
-```python
-anthropic_api_key = "your_api_key"
-```
-
----
-
-# 📎 Add Resume
-
-Place your resume inside:
-
-```bash
-attachments/resume.pdf
-```
-
----
-
-# 🔑 Gmail App Password Setup
-
-1. Open Google Account Security
-2. Enable 2-Step Verification
-3. Open:
-   `Security → App Passwords`
-4. Generate Mail App Password
-5. Paste into:
-
-```python
-smtp_password
-```
-
----
-
-# 🧠 Anthropic API Setup
-
-1. Create account on Anthropic Console
-2. Generate API key
-3. Add key in:
-
-```python
-anthropic_api_key
-```
-
----
-
-# ▶️ Running the Project
-
-## Manual Run
-
-```bash
-python main.py
-```
-
----
-
-## Automated Scheduled Run
-
-```bash
-python scheduler.py
-```
-
-Default:
-- Every weekday
-- 9:00 AM execution
-
----
-
-# 📊 Workflow
+# 📂 Project Structure
 
 ```text
-1. Scrape LinkedIn Jobs
-2. Extract Job Information
-3. Filter Relevant Opportunities Using AI
-4. Generate Personalized Emails
-5. Send Emails with Resume
-6. Store Results in Database
-7. Log Execution Details
+linkedin-job-agent/
+│
+├── ai/
+│   └── job_filter.py
+│
+├── scraper/
+│   └── linkedin_scraper.py
+│
+├── storage/
+│   └── db.py
+│
+├── streamlit_app.py
+├── main.py
+├── requirements.txt
+├── README.md
+└── .gitignore
 ```
 
 ---
 
 # 🛠️ Tech Stack
 
-| Category | Technology |
-|---|---|
-| Language | Python |
-| Automation | Playwright |
-| AI/LLM | Claude AI (Anthropic) |
-| Database | SQLite |
-| Email Service | SMTP |
-| Scheduling | schedule / cron logic |
-| Logging | Python logging |
+| Category           | Technology |
+| ------------------ | ---------- |
+| Language           | Python     |
+| Frontend           | Streamlit  |
+| Browser Automation | Playwright |
+| AI/LLM             | Groq       |
+| Database           | SQLite     |
+| Async Processing   | Asyncio    |
 
 ---
 
-# 📌 Future Improvements
+# ⚙️ Installation
 
-- Web dashboard
-- Resume optimization using AI
-- Multi-platform scraping (Indeed, Naukri, Wellfound)
-- AI cover letter generation
-- Recruiter contact extraction
-- Docker deployment
-- FastAPI backend
-- Streamlit frontend
-- Vector database for job matching
-- RAG-based personalized applications
-
----
-
-# ⚠️ Important Notes
-
-- LinkedIn discourages aggressive automated scraping.
-- Keep request volume low.
-- Recommended:
-  - `max_emails_per_run = 5–10`
-- Use responsibly and ethically.
-
----
-
-# 🧾 Logs & Tracking
-
-## Application Logs
+## Clone Repository
 
 ```bash
-agent.log
+git clone https://github.com/Suryansh9369/Linkedin-job-agent.git
+cd Linkedin-job-agent
 ```
 
-## Stored Jobs Database
+## Create Virtual Environment
 
 ```bash
-storage/jobs.db
+python -m venv .venv
+```
+
+### Windows
+
+```bash
+.venv\Scripts\activate
+```
+
+### Linux/Mac
+
+```bash
+source .venv/bin/activate
+```
+
+## Install Dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+## Install Playwright
+
+```bash
+playwright install
 ```
 
 ---
 
-# 🤝 Contribution
+# 🔑 Environment Variables
 
-Contributions, improvements, and feature suggestions are welcome.
+Create a `.env` file:
 
-1. Fork repository
-2. Create feature branch
-3. Commit changes
-4. Open Pull Request
+```env
+GROQ_API_KEY=your_groq_api_key
+LINKEDIN_EMAIL=your_email
+LINKEDIN_PASSWORD=your_password
+```
+
+---
+
+# ▶️ Run Application
+
+```bash
+streamlit run streamlit_app.py
+```
+
+Then open:
+
+```text
+http://localhost:8501
+```
+
+---
+
+# 📋 Usage
+
+1. Enter search keywords
+2. Select location
+3. Add must-have skills
+4. Add preferred skills
+5. Add avoid keywords
+6. Click **Start Job Hunt**
+7. Review AI-filtered opportunities
+
+---
+
+# 🔒 Security
+
+* Secrets are stored locally in `.env`
+* Session data is stored locally
+* `.env` and session folders are excluded from GitHub
+* Credentials are never committed to the repository
+
+---
+
+# 🚀 Future Improvements
+
+* Job match score visualization
+* CSV export
+* Resume-based job matching
+* Multi-platform support
+* Job analytics dashboard
+* User authentication
+* Cloud deployment
 
 ---
 
 # 📄 License
 
-This project is licensed under the MIT License.
+MIT License
 
 ---
 
 # 👨‍💻 Author
 
-Built by Suryansh  
-AI/ML Student | Robotics Enthusiast | Agentic AI Builder
+**Suryansh Vishwakarma**
+
+B.Tech CSE (AI & ML)
+
+Interests:
+
+* Artificial Intelligence
+* Robotics
+* Automation Engineering
+* Agentic AI Systems
