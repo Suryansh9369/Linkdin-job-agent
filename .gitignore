@@ -30,3 +30,11 @@ Thumbs.db
 #idea
 .idea/
 linkedin_session/
+
+debug_*.png
+debug_*.html
+jobs_page.png
+linkedin_session/
+
+jobs.db
+agent.log
