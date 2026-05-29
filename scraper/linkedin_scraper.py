@@ -50,13 +50,13 @@ class LinkedInScraper:
             for keyword in keywords:
                 log.info(f"  Searching: '{keyword}' in '{location}'")
                 try:
-                    keyword_jobs = await self._scrape_jobs(page, keyword, location, max_results // len(keywords))
+                    keyword_jobs = await self._scrape_jobs(page, keyword, location, max_results)
                     jobs.extend(keyword_jobs)
                 except Exception as e:
                     log.warning(f"  Keyword '{keyword}' failed: {e}")
                 await asyncio.sleep(random.uniform(2, 5))
 
-            await context.close()
+            # await context.close()
 
         # Deduplicate
         seen = set()
@@ -112,102 +112,207 @@ class LinkedInScraper:
         print("After login:", page.url)
 
     async def _scrape_jobs(self, page, keyword: str, location: str, limit: int) -> list:
+
         jobs = []
 
         search_url = (
             f"{self.BASE_URL}/jobs/search/"
             f"?keywords={keyword.replace(' ', '%20')}"
             f"&location={location.replace(' ', '%20')}"
-            f"&f_WT=2"
             f"&sortBy=DD"
         )
 
-        await page.goto(search_url)
-        await page.wait_for_load_state("domcontentloaded") Exception
-        await page.wait_for_timeout(8000)
+        print("SEARCH URL:", search_url)
 
-        # Confirmed working selector from debug output
-        job_cards = await page.query_selector_all(
-            "div.job-search-card, li.scaffold-layout__list-item"
+        await page.goto(
+            search_url,
+            wait_until="domcontentloaded"
         )
+
+        # wait for linkedin lazy loading
+        await page.wait_for_timeout(10000)
+
+        # debug screenshot
+        await page.screenshot(
+            path=f"debug_{keyword.replace(' ', '_')}.png"
+        )
+
+        # scroll to trigger lazy loading
+        await page.mouse.wheel(0, 3000)
+
+        await page.wait_for_timeout(5000)
+
+        # UPDATED SELECTORS
+        selectors = [
+            "li.jobs-search-results__list-item",
+            "div.job-search-card",
+            "li.scaffold-layout__list-item"
+        ]
+
+        job_cards = []
+
+        for selector in selectors:
+
+            cards = await page.query_selector_all(selector)
+
+            if cards:
+                print(f"WORKING SELECTOR: {selector}")
+                job_cards = cards
+                break
+
+        print("TOTAL JOB CARDS:", len(job_cards))
+
         log.info(f"  Job cards found: {len(job_cards)}")
 
         if not job_cards:
+
+            html = await page.content()
+
+            with open("debug_jobs_page.html", "w", encoding="utf-8") as f:
+                f.write(html)
+
             log.warning(f"  No cards found — URL: {page.url}")
+
             return []
 
         collected = 0
-        for card in job_cards[:limit]:
-            try:
-                job = await self._extract_job(page, card)
-                if job:
-                    jobs.append(job)
-                    collected += 1
-                    log.info(f"  [{collected}] {job['title']} @ {job['company']}")
-            except Exception as e:
-                log.debug(f"  Card error: {e}")
-            await asyncio.sleep(random.uniform(0.8, 1.5))
 
-        log.info(f"  Total collected for '{keyword}': {len(jobs)}")
+        for card in job_cards[:limit]:
+
+            try:
+
+                job = await self._extract_job(page, card)
+                
+                print("EXTRACTED JOB:", job)
+
+                if job:
+
+                    jobs.append(job)
+
+                    collected += 1
+
+                    log.info(
+                        f"  [{collected}] "
+                        f"{job['title']} @ {job['company']}"
+                    )
+
+            except Exception as e:
+
+                log.debug(f"  Card error: {e}")
+
+            await asyncio.sleep(random.uniform(1, 2))
+
+        log.info(
+            f"  Total collected for '{keyword}': {len(jobs)}"
+        )
+
         return jobs
 
     async def _extract_job(self, page, card) -> dict | None:
+
         try:
-            # Get job ID and URL directly from the card (no click needed)
-            job_id = await card.get_attribute("data-entity-urn") or ""
 
-            # Get basic info directly from card elements (no detail panel click)
-            title = await self._try_selectors(card, [
-                ".job-search-card__title",
-                "h3.base-search-card__title",
-                "h3",
-            ])
+            # JOB TITLE
+            title_el = await card.query_selector(
+                "a.job-card-container__link, "
+                "a[href*='/jobs/view/'], "
+                "strong"
+            )
 
-            company = await self._try_selectors(card, [
-                ".job-search-card__company-name",
-                "h4.base-search-card__subtitle",
-                "h4",
-            ])
+            title = ""
 
-            location = await self._try_selectors(card, [
-                ".job-search-card__location",
-                "span.job-search-card__location",
-            ])
+            if title_el:
+                title = (await title_el.inner_text()).strip()
 
-            # Get job link
-            link_el = await card.query_selector("a.base-card__full-link, a[class*='card']")
-            job_url = await link_el.get_attribute("href") if link_el else page.url
+            # COMPANY
+            company_el = await card.query_selector(
+                ".artdeco-entity-lockup__subtitle, "
+                ".job-card-container__company-name, "
+                "div.artdeco-entity-lockup__subtitle"
+            )
 
-            # Click to load description in detail panel
-            await card.click()
-            await asyncio.sleep(2)
+            company = ""
 
-            description = await self._try_selectors(page, [
-                ".description__text",
-                ".show-more-less-html__markup",
-                "#job-details",
-                ".jobs-description__content",
-                "div[class*='description']",
-            ])
+            if company_el:
+                company = (await company_el.inner_text()).strip()
 
-            contact_email = self._extract_email(description)
+            # LOCATION
+            location_el = await card.query_selector(
+                ".job-card-container__metadata-item, "
+                ".artdeco-entity-lockup__caption"
+            )
 
-            if not title or not company:
+            location = ""
+
+            if location_el:
+                location = (await location_el.inner_text()).strip()
+
+            # JOB URL
+            link_el = await card.query_selector(
+                "a[href*='/jobs/view/']"
+            )
+
+            job_url = ""
+
+            if link_el:
+                job_url = await link_el.get_attribute("href")
+
+            # CLICK CARD
+            try:
+                await card.click()
+                await asyncio.sleep(3)
+            except:
+                pass
+
+            # DESCRIPTION
+            description = ""
+
+            desc_selectors = [
+                ".jobs-description-content__text",
+                ".jobs-box__html-content",
+                ".jobs-description",
+                ".job-view-layout",
+                "div#job-details"
+            ]
+
+            for selector in desc_selectors:
+
+                try:
+
+                    desc_el = await page.query_selector(selector)
+
+                    if desc_el:
+
+                        text = await desc_el.inner_text()
+
+                        if text.strip():
+
+                            description = text.strip()
+
+                            break
+
+                except:
+                    continue
+
+            if not title:
+
                 return None
 
             return {
-                "job_id": job_id or f"{title}-{company}",
-                "title": title.strip(),
-                "company": company.strip(),
-                "location": location.strip() if location else "",
-                "description": description[:3000] if description else "",
+                "job_id": job_url or title,
+                "title": title,
+                "company": company,
+                "location": location,
+                "description": description[:3000],
                 "posted": "",
-                "contact_email": contact_email,
+                "contact_email": self._extract_email(description),
                 "url": job_url or page.url,
             }
 
         except Exception as e:
-            log.debug(f"  Extraction error: {e}")
+
+            print("EXTRACTION ERROR:", e)
+
             return None
 
     async def _try_selectors(self, context, selectors: list) -> str:
