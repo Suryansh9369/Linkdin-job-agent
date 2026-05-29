@@ -23,10 +23,11 @@ class JobFilter:
             job["match_score"] = score
             job["match_reason"] = reason
 
-            if score >= 7:
+            if score >= 3:
                 log.info(f"  Match ({score}/10): {job['title']} @ {job['company']}")
                 log.info(f"     Reason: {reason}")
                 matched.append(job)
+                print(job["title"], score)
             else:
                 log.debug(f"  Skip ({score}/10): {job['title']} @ {job['company']}")
 
